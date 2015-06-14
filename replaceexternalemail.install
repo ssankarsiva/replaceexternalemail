@@ -1,0 +1,31 @@
+<?php
+
+function replaceexternalemail_schema() {
+  $schema = array();
+  $schema['replaceexternalemail'] = array(
+
+    // Example (partial) specification for table "node".
+    'description' => 'The base table for nodes.',
+    'fields' => array(
+      'replaceexternalemailid' => array(
+        'description' => 'The primary identifier for a node.',
+        'type' => 'serial',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+
+      'replaceexternalemail' => array(
+        'description' => 'The title of this node, always treated as non-markup plain text.',
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+        'default' => '',
+      ),
+    ),
+   'indexes' => array(
+   'replaceexternalemail' => array('replaceexternalemail'),
+    ),
+    'primary key' => array('replaceexternalemailid'),
+  );
+  return $schema;
+}

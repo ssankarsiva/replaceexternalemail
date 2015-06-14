@@ -1,0 +1,131 @@
+<?php
+//replaceexternalemail
+function replaceexternalemail_menu(){
+  $items = array();
+
+  $items['admin/settings/replaceexternalemail'] = array(
+      'title' => 'Replace external email in content type',
+      'description' => 'Enter minimum one content type',
+      'page callback' => 'drupal_get_form',
+      'page arguments' => array('replaceexternalemail_admin'),
+      'access arguments' => array('create new users'),
+      'type' => MENU_NORMAL_ITEM,
+  );
+
+  return $items;
+}
+
+
+//Replace external email
+
+function replaceexternalemail_admin() {
+  $form = array();
+
+  $form['replaceexternalemail_type'] = array(
+      '#type' => 'textfield',
+      '#title' => t('Content type'),
+      '#default_value' => variable_get('replaceexternalemail_type'),
+      '#description' => 'Comma separated content type machine name',
+      '#required' => TRUE,
+  );
+  $form['replaceexternalemail_formid'] = array(
+      '#type' => 'textfield',
+      '#title' => t('Form id'),
+      '#default_value' => variable_get('replaceexternalemail_formid'),
+      '#description' => 'Id of the form name',
+      '#required' => TRUE,
+  );
+    $form['replaceexternalemail_formurl'] = array(
+      '#type' => 'textfield',
+      '#title' => t('Form url'),
+      '#default_value' => variable_get('replaceexternalemail_formurl'),
+      '#description' => 'URL of the form name withou http and prefix /',
+      '#required' => TRUE,
+  );
+
+  return system_settings_form($form);
+}
+
+function replaceexternalemail_node_presave($node) {
+  if ($node && in_array($node->type,explode(',',variable_get('replaceexternalemail_type')))) {
+    // Get all links from node body field.
+    $emails = _replaceexternalemail_extract_mail($node->body['und']['0']['value']);
+
+    // Add redirect entry using redirect module function if url is external
+
+  }
+}
+
+function _replaceexternalemail_extract_mail($text = '')
+{
+
+  $pattern	=	"/(?:[a-z0-9!#$%&'*+=?^_`{|}~-]+(?:\.[a-z0-9!#$%&'*+=?^_`{|}~-]+)*|\"(?:[\x01-\x08\x0b\x0c\x0e-\x1f\x21\x23-\x5b\x5d-\x7f]|\\[\x01-\x09\x0b\x0c\x0e-\x7f])*\")@(?:(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?|\[(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?|[a-z0-9-]*[a-z0-9]:(?:[\x01-\x08\x0b\x0c\x0e-\x1f\x21-\x5a\x53-\x7f]|\\[\x01-\x09\x0b\x0c\x0e-\x7f])+)\])/";
+  preg_match_all($pattern, $text, $matches);
+  $insert_banned_emails = db_insert('replaceexternalemail')->fields(array('replaceexternalemail'));
+
+  foreach (array_unique($matches[0]) as $email) {
+
+    if (db_query("SELECT COUNT(*) FROM {replaceexternalemail} WHERE replaceexternalemail = :replaceexternalemail", array(':replaceexternalemail' => $email))->fetchField()==0)
+      $insert_banned_emails->values(array(
+          'replaceexternalemail' => $email,
+      ));
+
+  }
+
+  try {
+    $insert_banned_emails->execute();
+  }
+  catch (Exception $e) {
+    print $e->getMessage();
+  }
+
+}
+
+/**
+ * Implements hook_node_view()
+ * Fetch links in content and replace redirect url
+ */
+function replaceexternalemail_node_view($node, $view_mode, $langcode) {
+  if (in_array($node->type,explode(',',variable_get('replaceexternalemail_type'))) && $view_mode=='full') {
+    //$node->content['body']['0']['#markup'];
+    $node->content['body']['0']['#markup'] =  _replaceexternalemail_extract_links_replace($node);
+  }
+}
+
+function _replaceexternalemail_extract_links_replace($node){
+  $text = $node->content['body']['0']['#markup'];
+  global  $base_url;
+  $html_dom = filter_dom_load($text);
+  $pattern	=	"/(?:[a-z0-9!#$%&'*+=?^_`{|}~-]+(?:\.[a-z0-9!#$%&'*+=?^_`{|}~-]+)*|\"(?:[\x01-\x08\x0b\x0c\x0e-\x1f\x21\x23-\x5b\x5d-\x7f]|\\[\x01-\x09\x0b\x0c\x0e-\x7f])*\")@(?:(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?|\[(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?|[a-z0-9-]*[a-z0-9]:(?:[\x01-\x08\x0b\x0c\x0e-\x1f\x21-\x5a\x53-\x7f]|\\[\x01-\x09\x0b\x0c\x0e-\x7f])+)\])/";
+  preg_match_all($pattern,  $text, $matches);
+  foreach (array_unique($matches[0]) as $email) {
+    $result = db_query('SELECT email.replaceexternalemailid, email.replaceexternalemail
+        FROM {replaceexternalemail} email WHERE email.replaceexternalemail = :replaceexternalemail', array(':replaceexternalemail' => $email));
+    $record = $result->fetchObject();
+    // Perform operations on $record->title, etc. here.
+    // in this example the available data would be mapped to object properties:
+    // $record->nid, $record->title, $record->created
+    $formurl = variable_get('replaceexternalemail_formurl');
+    $url = (!empty($_SERVER['HTTPS'])) ? "https://".$_SERVER['SERVER_NAME'].$_SERVER['REQUEST_URI'] : "http://".$_SERVER['SERVER_NAME'].$_SERVER['REQUEST_URI'];
+    if($record){
+      $text = str_replace("href=\"mailto:{$email}\"","href=\"{$base_url}/{$formurl}?eid={$record->replaceexternalemailid}&newsurl=".$url."&newstitle=".drupal_get_title()."\"",$text);
+      $text = str_replace("{$email}","Contact",$text);
+      //$text = preg_replace('/<([+a] +[href= mailto:{$email}])+ >(.*)</a>/is', "'<a href=\"{$base_url}/{$formurl}?eid={$record->replaceexternalemailid}&newsurl='.$url.'&newstitle='.drupal_get_title().'>Contact</a>'", $text);
+
+    }
+  }
+  return $text;
+}
+
+function replaceexternalemail_form_alter(&$form, &$form_state, $form_id){
+
+  if ($form_id == variable_get('replaceexternalemail_formid')){
+    $result = db_query('SELECT email.replaceexternalemailid, email.replaceexternalemail
+        FROM {replaceexternalemail} email WHERE email.replaceexternalemailid = :replaceexternalemailid', array(':replaceexternalemailid' => $form['submitted']['hidden_mail']['#value']));
+    $record = $result->fetchObject();
+    if($form['submitted']['hidden_mail']['#value'])
+      $form['submitted']['hidden_mail']['#value'] = $record->replaceexternalemail;
+
+  }
+}
+

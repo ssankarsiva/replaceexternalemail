@@ -1,0 +1,4 @@
+name = Replace email in node 
+description = Replace mail in content with replace token with link to webform,after form submit mail will be trigger to webform
+core  = 7.x
+package = custom modules 
